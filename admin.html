@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel - Quản lý</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-5">
+    <!-- Login Section -->
+    <div id="login-form" class="max-w-md mx-auto mt-20 bg-white p-8 rounded-xl shadow">
+        <h2 class="text-2xl font-bold mb-4">Admin Login</h2>
+        <input type="password" id="admin-key" placeholder="Nhập GitHub Token của bạn" class="w-full border p-2 mb-4 rounded">
+        <button onclick="login()" class="w-full bg-black text-white py-2 rounded">Đăng nhập</button>
+    </div>
+
+    <!-- Main Admin Section -->
+    <div id="main-admin" class="hidden max-w-4xl mx-auto">
+        <div class="bg-white p-6 rounded-xl shadow mb-6">
+            <h2 class="text-xl font-bold mb-4">Tải lên mới</h2>
+            <input type="file" id="file-input" class="mb-4 block" accept="image/*,video/*">
+            <button id="up-btn" onclick="handleUpload()" class="bg-blue-600 text-white px-4 py-2 rounded">Upload & Lưu</button>
+        </div>
+        <div id="admin-list" class="space-y-2"></div>
+    </div>
+
+    <script>
+        let GITHUB_TOKEN = "";
+        const REPO_OWNER = "TÊN_GITHUB_CỦA_BẠN";
+        const REPO_NAME = "TÊN_REPOSITORY";
+        const CLOUD_NAME = "TEN_CLOUD_CUA_BAN";
+        const PRESET = "MY_PRESET";
+
+        function login() {
+            GITHUB_TOKEN = document.getElementById('admin-key').value;
+            if (GITHUB_TOKEN) {
+                document.getElementById('login-form').classList.add('hidden');
+                document.getElementById('main-admin').classList.remove('hidden');
+                loadAdminList();
+            }
+        }
+
+        async function handleUpload() {
+            const file = document.getElementById('file-input').files[0];
+            if(!file) return;
+            const btn = document.getElementById('up-btn');
+            btn.innerText = "Đang tải...";
+
+            // 1. Upload Cloudinary
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', PRESET);
+            const resC = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`, {method:'POST', body:formData});
+            const dataC = await resC.json();
+
+            // 2. Cập nhật data.json trên GitHub
+            await updateGithubData(dataC.secure_url, dataC.resource_type, file.name);
+            btn.innerText = "Upload & Lưu";
+            loadAdminList();
+        }
+
+        async function updateGithubData(url, type, name, isDelete = false, targetId = null) {
+            // Lấy file cũ
+            const getFile = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/data.json`, {
+                headers: { Authorization: `token ${GITHUB_TOKEN}` }
+            });
+            const fileData = await getFile.json();
+            let content = JSON.parse(atob(fileData.content));
+
+            if (isDelete) {
+                content = content.filter(i => i.id !== targetId);
+            } else {
+                content.push({ id: Date.now(), url, type, name });
+            }
+
+            // Ghi file mới
+            await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/data.json`, {
+                method: 'PUT',
+                headers: { Authorization: `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: isDelete ? "Delete media" : "Add new media",
+                    content: btoa(JSON.stringify(content, null, 2)),
+                    sha: fileData.sha
+                })
+            });
+        }
+
+        async function loadAdminList() {
+            const res = await fetch(`data.json?t=${Date.now()}`);
+            const data = await res.json();
+            const list = document.getElementById('admin-list');
+            list.innerHTML = "";
+            data.reverse().forEach(item => {
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-white p-3 rounded shadow";
+                div.innerHTML = `<span>${item.name}</span><button onclick="deleteMedia(${item.id})" class="text-red-500 font-bold">Xoá</button>`;
+                list.appendChild(div);
+            });
+        }
+
+        window.deleteMedia = async (id) => {
+            if(confirm("Bạn muốn xoá?")) {
+                await updateGithubData(null, null, null, true, id);
+                loadAdminList();
+            }
+        }
+    </script>
+</body>
+</html>
