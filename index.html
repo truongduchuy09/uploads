@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Gallery - Upload & View</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold mb-4 text-center">Bộ Sưu Tập Ảnh & Video</h1>
+        
+        <!-- Phần Upload -->
+        <div class="mb-8 border-2 border-dashed border-blue-400 p-6 text-center">
+            <input type="file" id="file-input" class="hidden" accept="image/*,video/*">
+            <label for="file-input" class="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer hover:bg-blue-600">
+                Chọn File để Upload
+            </label>
+            <p id="status" class="mt-2 text-sm text-gray-600"></p>
+        </div>
+
+        <!-- Phần Hiển Thị -->
+        <div id="gallery" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- File sau khi upload sẽ hiện ở đây -->
+        </div>
+    </div>
+
+    <script>
+        const CLOUD_NAME = 'ds6zyzvad'; // Thay bằng Cloud Name của bạn
+        const UPLOAD_PRESET = 'huy';     // Thay bằng Upload Preset của bạn
+
+        const fileInput = document.getElementById('file-input');
+        const status = document.getElementById('status');
+        const gallery = document.getElementById('gallery');
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            status.innerText = "Đang upload... vui lòng đợi.";
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', UPLOAD_PRESET);
+
+            try {
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                status.innerText = "Upload thành công!";
+                displayMedia(data);
+            } catch (err) {
+                status.innerText = "Lỗi upload!";
+                console.error(err);
+            }
+        });
+
+        function displayMedia(data) {
+            const div = document.createElement('div');
+            div.className = "bg-gray-200 p-2 rounded shadow";
+
+            if (data.resource_type === 'image') {
+                div.innerHTML = `<img src="${data.secure_url}" class="w-full h-auto rounded">`;
+            } else {
+                div.innerHTML = `<video src="${data.secure_url}" controls class="w-full rounded"></video>`;
+            }
+            gallery.prepend(div);
+        }
+    </script>
+</body>
+</html>
